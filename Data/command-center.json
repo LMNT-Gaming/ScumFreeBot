@@ -1,0 +1,13 @@
+{
+  "commands": [
+    {
+      "enabled": true,
+      "trigger": "!welcomepack",
+      "scriptFile": "welcomepack.sfb",
+      "runMode": "UniquePerPlayer",
+      "cooldownHours": 0,
+      "zone": "",
+      "denyMessage": "{player} du hast dein Welcomepack bereits erhalten."
+    }
+  ]
+}

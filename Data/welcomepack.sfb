@@ -1,0 +1,12 @@
+# Ablaufscript fuer !welcomepack
+# Platzhalter: {player}, {steamId}, {arg1}, {arg2}, ...
+# Wartezeiten: wait 500ms, wait 1s, wait 2m, wait 1h
+{player} dein Welcomepack ist auf dem Weg, bitte bleib stehen!
+wait 1s
+#teleportto {player}
+wait 30s
+#spawnitem BP_Weapon_98k_Kar98 1 Location {playerlocation}
+wait 500ms
+#spawnitem BP_Weapon_Magazine_Kar98 2 Location {playerlocation}
+wait 500ms
+{player} dein Welcomepack wurde zugestellt. Viel Erfolg!
