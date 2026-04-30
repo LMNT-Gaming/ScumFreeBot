@@ -11,6 +11,11 @@ using WpfBrushes = System.Windows.Media.Brushes;
 using WpfButton = System.Windows.Controls.Button;
 using WpfFontFamily = System.Windows.Media.FontFamily;
 using WpfTextBox = System.Windows.Controls.TextBox;
+using System.Diagnostics;
+using WpfClipboard = System.Windows.Clipboard;
+using WpfMessageBox = System.Windows.MessageBox;
+using WpfMessageBoxButton = System.Windows.MessageBoxButton;
+using WpfMessageBoxImage = System.Windows.MessageBoxImage;
 
 namespace ScumFreeBot;
 
@@ -48,6 +53,7 @@ public partial class MainWindow : Window
         UpdateTimer();
         UpdateRemoteSyncTimer();
         await _viewModel.RefreshAsync();
+        await _viewModel.CheckForUpdatesAsync();
     }
 
     private async void RemoteSyncTimer_Tick(object? sender, EventArgs e)
@@ -164,7 +170,86 @@ public partial class MainWindow : Window
             MessageBoxImage.Information);
     }
 
-private void ShowCommandScriptHelpButton_Click(object sender, RoutedEventArgs e)
+    private void RefreshPlayerCommandUsagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.LoadPlayerCommandUsages();
+    }
+
+    private void ResetSelectedPlayerCommandUsageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = System.Windows.MessageBox.Show(
+            this,
+            "Diesen Befehl für den ausgewählten Spieler wirklich zurücksetzen?",
+            "Befehl zurücksetzen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _viewModel.ResetSelectedPlayerCommandUsage();
+    }
+
+    private void ResetAllPlayerCommandUsagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = System.Windows.MessageBox.Show(
+            this,
+            "Alle gespeicherten Befehlsausführungen für diesen Spieler wirklich zurücksetzen?",
+            "Spieler zurücksetzen",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _viewModel.ResetAllCommandUsagesForSelectedPlayer();
+    }
+
+    private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.CheckForUpdatesAsync();
+    }
+
+    private void OpenUpdateDownloadButton_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(_viewModel.UpdateDownloadUrl);
+    }
+
+    private void OpenPatchNotesButton_Click(object sender, RoutedEventArgs e)
+    {
+        OpenUrl(_viewModel.UpdatePatchNotesUrl);
+    }
+
+    private void OpenUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url)
+            {
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            System.Windows.MessageBox.Show(
+                this,
+                "Der Link konnte nicht geöffnet werden.",
+                "Update",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private void ShowCommandScriptHelpButton_Click(object sender, RoutedEventArgs e)
 {
     var dialog = new Window
     {
@@ -175,9 +260,11 @@ private void ShowCommandScriptHelpButton_Click(object sender, RoutedEventArgs e)
         MinWidth = 620,
         MinHeight = 520,
         WindowStartupLocation = WindowStartupLocation.CenterOwner,
-        Background = GetBrush("WindowBackgroundBrush", "#0F172A"),
+        Background = GetBrush("WindowBackgroundBrush", "#07070A"),
         ShowInTaskbar = false
     };
+
+
 
     var panel = new StackPanel
     {
@@ -185,39 +272,175 @@ private void ShowCommandScriptHelpButton_Click(object sender, RoutedEventArgs e)
     };
 
     panel.Children.Add(CreateHelpTitle("Script-Hilfe fuer Befehle"));
-    panel.Children.Add(CreateHelpText("Hier siehst du die aktuell unterstuetzten Variablen und Ablaufbefehle fuer die .sfb-Skripte in deinem Data-Ordner."));
+        panel.Children.Add(CreateHelpTitle("Script-Hilfe fuer Befehle"));
+        panel.Children.Add(CreateHelpText(
+            "Hier findest du die wichtigsten Variablen, Ablaufbefehle und Beispiele fuer .sfb-Skripte. " +
+            "Die Skripte liegen im Data-Ordner und werden von der Steuerungszentrale ausgefuehrt."));
 
-    panel.Children.Add(CreateHelpHeading("Variablen"));
-    panel.Children.Add(CreateHelpCode("{player}   Spielername\n{steamId}  Steam-ID des Spielers\n{command}  Ausgeloester Spielerbefehl, z. B. !vote\n{args}     Alle Argumente nach dem Spielerbefehl\n{arg1}     Erstes Argument\n{arg2}     Zweites Argument\n{arg3}     Drittes Argument\n{now}      Aktuelles Datum mit Uhrzeit\n{date}     Aktuelles Datum\n{time}     Aktuelle Uhrzeit"));
+        panel.Children.Add(CreateHelpHeading("1. Wichtige Variablen"));
+        panel.Children.Add(CreateHelpCode(
+        @"{player}              Spielername
+{steamId}             Steam-ID des Spielers
+{command}             Ausgeloester Spielerbefehl, z. B. !vote
+{args}                Alle Argumente nach dem Spielerbefehl
+{arg1}                Erstes Argument
+{arg2}                Zweites Argument
+{arg3}                Drittes Argument
+{now}                 Aktuelles Datum mit Uhrzeit
+{date}                Aktuelles Datum
+{time}                Aktuelle Uhrzeit"));
 
-    panel.Children.Add(CreateHelpCode("{playerlocation}   Übergibt die Spielercoordinaten in X Y Z"));
+        panel.Children.Add(CreateHelpHeading("2. Spielerposition"));
+        panel.Children.Add(CreateHelpText(
+            "Die Spielerposition wird nur abgefragt, wenn das Skript wirklich {playerlocation} verwendet. " +
+            "Der Bot fuehrt dann automatisch #ListPlayers aus und liest die Position aus der lokalen SCUM.log."));
 
-    panel.Children.Add(CreateHelpHeading("Ablaufsteuerung"));
-    panel.Children.Add(CreateHelpCode("wait 500ms\nwait 1s\nwait 30s\nwait 2m\nwait 1h"));
-    panel.Children.Add(CreateHelpText("wait pausiert den Ablauf an genau dieser Stelle. Dadurch entscheidet der Admin im Skript selbst, wie viel Abstand zwischen Teleport, Spawn und Chatmeldung liegt."));
+        panel.Children.Add(CreateHelpCode(
+        @"{playerlocation}        Spielerposition im SCUM-Format
+{playerlocation+50}     Spielerposition mit Z-Offset +50
+{playerlocation+5}      Spielerposition mit Z-Offset +5
+{playerlocation-10}     Spielerposition mit Z-Offset -10"));
 
-    panel.Children.Add(CreateHelpHeading("Kommentare"));
-    panel.Children.Add(CreateHelpCode("// Kommentar\n# Kommentar\n; Kommentar"));
-    panel.Children.Add(CreateHelpText("Wichtig: SCUM-Adminbefehle wie #spawnitem bleiben gueltig. Nur Zeilen mit '# ' also Raute plus Leerzeichen werden als Kommentar ignoriert."));
+        panel.Children.Add(CreateHelpText(
+            "Ausgabeformat fuer SCUM: \"[X Y Z]\". Beispiel: \"[-554320 -846077.312 13288.3]\""));
 
-    panel.Children.Add(CreateHelpHeading("Beispiel: !vote settime 1"));
-    panel.Children.Add(CreateHelpCode("Spieler schreibt:\n!vote settime 1\n\nSkript:\n#vote {arg1} {arg2}\n\nErgebnis:\n#vote settime 1"));
+        panel.Children.Add(CreateHelpHeading("3. Warten zwischen Befehlen"));
+        panel.Children.Add(CreateHelpCode(
+        @"wait 500ms
+wait 1s
+wait 30s
+wait 2m
+wait 1h"));
 
-    panel.Children.Add(CreateHelpHeading("Beispiel mit allen Argumenten"));
-    panel.Children.Add(CreateHelpCode("Spieler schreibt:\n!vote setweather clear\n\nSkript:\n#vote {args}\n\nErgebnis:\n#vote setweather clear"));
+        panel.Children.Add(CreateHelpText(
+            "wait pausiert den Ablauf genau an dieser Stelle. So kann der Admin selbst bestimmen, " +
+            "wie viel Abstand zwischen Teleport, Spawn und Chatmeldung liegt."));
 
-    panel.Children.Add(CreateHelpHeading("Welcomepack-Beispiel"));
-    panel.Children.Add(CreateHelpCode("{player} dein Welcomepack ist auf dem Weg, bitte bleib stehen!\nwait 1s\n#teleportto {player}\nwait 30s\n#spawnitem BP_Weapon_98k_Kar98 1 Location {player}\nwait 500ms\n#spawnitem BP_Weapon_Magazine_Kar98 2 Location {player}"));
+        panel.Children.Add(CreateHelpHeading("4. Kommentare"));
+        panel.Children.Add(CreateHelpCode(
+        @"// Kommentar
+# Kommentar
+; Kommentar"));
 
-    var closeButton = new WpfButton
+        panel.Children.Add(CreateHelpText(
+            "Wichtig: SCUM-Adminbefehle wie #spawnitem bleiben gueltig. " +
+            "Nur Zeilen mit '# ' also Raute plus Leerzeichen werden als Kommentar ignoriert."));
+
+        panel.Children.Add(CreateHelpHeading("5. Randomizer / Zufallsbloecke"));
+        panel.Children.Add(CreateHelpText(
+            "Mit randomblock kann pro Ausfuehrung zufaellig ein case-Block ausgefuehrt werden. " +
+            "Die Zahl hinter case ist eine Gewichtung. Die Summe muss nicht 100 ergeben."));
+
+        panel.Children.Add(CreateHelpCode(
+        @"randomblock
+case 70
+  #spawnitem BP_Water_05L 1 Location {playerlocation+50}
+  wait 500ms
+  #spawnitem BP_Bread 1 Location {playerlocation+50}
+
+case 20
+  #spawnitem Antibiotic_Pill_Single 2 Location {playerlocation+50}
+  wait 500ms
+  #spawnitem Painkillers_01 1 Location {playerlocation+50}
+
+case 10
+  #spawnitem BP_Cash 1000 Location {playerlocation+50}
+
+endrandomblock"));
+
+        panel.Children.Add(CreateHelpText(
+            "Beispiel: case 70 / case 20 / case 10 entspricht ungefaehr 70% / 20% / 10%. " +
+            "case 20 / case 60 entspricht automatisch 25% / 75%. Ohne Zahl zaehlt case als Gewicht 1."));
+
+
+        panel.Children.Add(CreateHelpHeading("5. Randomizer / Zufallsbloecke"));
+        panel.Children.Add(CreateHelpText(
+            "Mit randomblock kann pro Ausfuehrung zufaellig ein case-Block ausgefuehrt werden."));
+
+        panel.Children.Add(CreateHelpCode(
+        @"randomblock
+case 70
+  #spawnitem BP_Water_05L 1 Location {playerlocation+50}
+  wait 500ms
+  #spawnitem BP_Bread 1 Location {playerlocation+50}
+
+case 20
+  #spawnitem Antibiotic_Pill_Single 2 Location {playerlocation+50}
+  wait 500ms
+  #spawnitem Painkillers_01 1 Location {playerlocation+50}
+
+case 10
+  #spawnitem BP_Cash 1000 Location {playerlocation+50}
+
+endrandomblock"));
+
+        panel.Children.Add(CreateHelpText(
+            "Ein randomblock beginnt immer mit randomblock und endet mit endrandomblock. " +
+            "Dazwischen koennen mehrere case-Bloecke stehen. Pro Ausfuehrung wird genau ein case-Block zufaellig ausgewaehlt."));
+
+        panel.Children.Add(CreateHelpText(
+            "Die Zahl hinter case ist eine Gewichtung, keine feste Prozentpflicht. " +
+            "Beispiel: case 70, case 20, case 10 ergibt ungefaehr 70%, 20%, 10%. " +
+            "case 20 und case 60 ergibt automatisch 25% und 75%, weil 20 von 80 und 60 von 80 gerechnet wird."));
+
+        panel.Children.Add(CreateHelpText(
+            "Wenn bei case keine Zahl angegeben wird, bekommt dieser Block automatisch Gewicht 1. " +
+            "Mehrere case ohne Zahl werden gleich wahrscheinlich ausgewaehlt."));
+
+        panel.Children.Add(CreateHelpHeading("6. Beispiel: Vote-Befehl"));
+        panel.Children.Add(CreateHelpCode(
+        @"Spieler schreibt:
+!vote settime 1
+
+Skript:
+#vote {arg1} {arg2}
+
+Ergebnis:
+#vote settime 1"));
+
+        panel.Children.Add(CreateHelpHeading("7. Beispiel mit allen Argumenten"));
+        panel.Children.Add(CreateHelpCode(
+        @"Spieler schreibt:
+!vote setweather clear
+
+Skript:
+#vote {args}
+
+Ergebnis:
+#vote setweather clear"));
+
+        panel.Children.Add(CreateHelpHeading("8. Welcomepack-Beispiel"));
+        panel.Children.Add(CreateHelpCode(
+        @"{player} dein Welcomepack ist auf dem Weg, bitte bleib stehen!
+wait 1s
+
+#teleportto {player}
+wait 30s
+
+#spawnitem BP_Weapon_98k_Kar98 1 Location {playerlocation+50}
+wait 500ms
+
+#spawnitem BP_Weapon_Magazine_Kar98 2 Location {playerlocation+50}
+wait 500ms
+
+{player} dein Welcomepack wurde zugestellt."));
+
+        panel.Children.Add(CreateHelpHeading("9. KI-Hilfe"));
+        panel.Children.Add(CreateHelpText(
+            "Mit dem Button kannst du eine Vorlage kopieren und in eine KI einfuegen. " +
+            "Danach musst du nur noch beschreiben, welche Items, Waffen oder Ablaufe du haben moechtest."));
+
+        panel.Children.Add(CreateCopyAiPromptButton());
+
+        var closeButton = new WpfButton
     {
         Content = "Schliessen",
         HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
         Margin = new Thickness(0, 18, 0, 0),
         Padding = new Thickness(16, 8, 16, 8),
-        Background = GetBrush("AccentBrush", "#2563EB"),
+        Background = GetBrush("AccentBrush", "#EF1B1B"),
         Foreground = WpfBrushes.White,
-        BorderBrush = GetBrush("AccentBrush", "#2563EB"),
+        BorderBrush = GetBrush("AccentBrush", "#EF1B1B"),
         BorderThickness = new Thickness(1)
     };
     closeButton.Click += (_, _) => dialog.Close();
@@ -225,8 +448,8 @@ private void ShowCommandScriptHelpButton_Click(object sender, RoutedEventArgs e)
 
     dialog.Content = new Border
     {
-        Background = GetBrush("CardBackgroundBrush", "#111827"),
-        BorderBrush = GetBrush("CardBorderBrush", "#1F2937"),
+        Background = GetBrush("CardBackgroundBrush", "#101014"),
+        BorderBrush = GetBrush("CardBorderBrush", "#2A1116"),
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(18),
         Margin = new Thickness(18),
@@ -264,7 +487,101 @@ private TextBlock CreateHelpHeading(string text)
     };
 }
 
-private TextBlock CreateHelpText(string text)
+    private FrameworkElement CreateCopyAiPromptButton()
+    {
+        var button = new WpfButton
+        {
+            Content = "KI-Prompt kopieren",
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 14),
+            Padding = new Thickness(14, 8, 14, 8),
+            Foreground = WpfBrushes.White,
+            Background = GetBrush("AccentBrush", "#EF1B1B"),
+            BorderBrush = GetBrush("AccentBrush", "#EF1B1B"),
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+
+        button.Click += (_, _) =>
+        {
+            WpfClipboard.SetText(BuildAiScriptPrompt());
+
+            WpfMessageBox.Show(
+                this,
+                "KI-Prompt wurde in die Zwischenablage kopiert.",
+                "Kopiert",
+                WpfMessageBoxButton.OK,
+                WpfMessageBoxImage.Information);
+        };
+
+        return button;
+    }
+
+    private static string BuildAiScriptPrompt()
+    {
+        return
+    @"Erstelle mir ein SCUM Freebot .sfb Skript.
+
+Bitte nutze nur diese unterstuetzte Syntax:
+
+Variablen:
+{player}              Spielername
+{steamId}             Steam-ID des Spielers
+{command}             Ausgeloester Spielerbefehl
+{args}                Alle Argumente nach dem Spielerbefehl
+{arg1}                Erstes Argument
+{arg2}                Zweites Argument
+{arg3}                Drittes Argument
+{now}                 Aktuelles Datum mit Uhrzeit
+{date}                Aktuelles Datum
+{time}                Aktuelle Uhrzeit
+
+Spielerposition:
+{playerlocation}      Position im SCUM-Format ""[X Y Z]""
+{playerlocation+50}   Position mit Z-Offset +50
+{playerlocation+5}    Position mit Z-Offset +5
+{playerlocation-10}   Position mit Z-Offset -10
+
+Warten:
+wait 500ms
+wait 1s
+wait 30s
+wait 2m
+wait 1h
+
+Kommentare:
+Zeilen mit // oder ; sind Kommentare.
+Zeilen mit '# ' sind Kommentare.
+SCUM-Adminbefehle wie #spawnitem bleiben gueltig.
+
+Randomizer:
+randomblock
+case 70
+  Befehl A1
+  wait 500ms
+  Befehl A2
+
+case 20
+  Befehl B1
+
+case 10
+  Befehl C1
+
+endrandomblock
+
+Die case-Zahlen sind Gewichtungen. Sie muessen nicht zusammen 100 ergeben.
+
+Wichtig:
+- Gib nur den fertigen .sfb Skriptinhalt aus.
+- Keine Markdown-Codeblöcke.
+- Keine Erklaerung.
+- Nutze fuer Spawnpositionen bevorzugt Location {playerlocation+50}, damit Items nicht im Boden stecken.
+- Zwischen mehreren Spawnbefehlen bitte wait 500ms einfuegen.
+
+Mein Wunsch:
+Erstelle mir ein Skript fuer: ";
+    }
+
+    private TextBlock CreateHelpText(string text)
 {
     return new TextBlock
     {
@@ -282,9 +599,9 @@ private WpfTextBox CreateHelpCode(string text)
     {
         Text = text,
         IsReadOnly = true,
-        Background = GetBrush("InputBrush", "#0B1220"),
+        Background = GetBrush("InputBrush", "#09090B"),
         Foreground = GetBrush("PrimaryTextBrush", "#F8FAFC"),
-        BorderBrush = GetBrush("InputBorderBrush", "#334155"),
+        BorderBrush = GetBrush("InputBorderBrush", "#3F1D24"),
         BorderThickness = new Thickness(1),
         FontFamily = new WpfFontFamily("Consolas"),
         FontSize = 13,

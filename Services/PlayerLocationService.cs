@@ -1,9 +1,10 @@
-﻿using System;
+﻿using ScumFreeBot.Models;
+using System;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using ScumFreeBot.Models;
 
 namespace ScumFreeBot.Services;
 
@@ -14,8 +15,8 @@ public sealed class PlayerLocationService
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex LocationLineRegex = new(
-        @"^Location:\s*(?<location>X\s*=\s*-?\d+(?:\.\d+)?\s+Y\s*=\s*-?\d+(?:\.\d+)?\s+Z\s*=\s*-?\d+(?:\.\d+)?)\s*$",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    @"^Location:\s*X\s*=\s*(?<x>-?\d+(?:\.\d+)?)\s+Y\s*=\s*(?<y>-?\d+(?:\.\d+)?)\s+Z\s*=\s*(?<z>-?\d+(?:\.\d+)?)\s*$",
+    RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public string ScumLogPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -26,7 +27,10 @@ public sealed class PlayerLocationService
 
     public bool ScriptNeedsPlayerLocation(string scriptText)
     {
-        return scriptText.Contains("{playerlocation}", StringComparison.OrdinalIgnoreCase);
+        return Regex.IsMatch(
+            scriptText,
+            @"\{playerlocation(?:[+-]\d+(?:\.\d+)?)?\}",
+            RegexOptions.IgnoreCase);
     }
 
     public async Task<string?> ResolvePlayerLocationAsync(
@@ -93,7 +97,10 @@ public sealed class PlayerLocationService
                 var locationMatch = LocationLineRegex.Match(lines[j].Trim());
                 if (locationMatch.Success)
                 {
-                    return NormalizeLocation(locationMatch.Groups["location"].Value);
+                    return BuildLocation(
+                        locationMatch.Groups["x"].Value,
+                        locationMatch.Groups["y"].Value,
+                        locationMatch.Groups["z"].Value);
                 }
             }
         }
@@ -101,8 +108,13 @@ public sealed class PlayerLocationService
         return null;
     }
 
-    private static string NormalizeLocation(string location)
+    private static string BuildLocation(string x, string y, string z)
     {
-        return Regex.Replace(location.Trim(), @"\s+", " ");
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "\"[{0:0.###} {1:0.###} {2:0.###}]\"",
+            double.Parse(x, CultureInfo.InvariantCulture),
+            double.Parse(y, CultureInfo.InvariantCulture),
+            double.Parse(z, CultureInfo.InvariantCulture));
     }
 }

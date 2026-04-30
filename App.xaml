@@ -4,15 +4,28 @@
              xmlns:local="clr-namespace:ScumFreeBot"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#0F172A" />
-        <SolidColorBrush x:Key="CardBackgroundBrush" Color="#111827" />
-        <SolidColorBrush x:Key="CardSecondaryBrush" Color="#1F2937" />
-        <SolidColorBrush x:Key="AccentBrush" Color="#22C55E" />
-        <SolidColorBrush x:Key="AccentSoftBrush" Color="#16301F" />
-        <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
-        <SolidColorBrush x:Key="DangerBrush" Color="#EF4444" />
-        <SolidColorBrush x:Key="MutedTextBrush" Color="#94A3B8" />
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#07070A" />
+        <SolidColorBrush x:Key="CardBackgroundBrush" Color="#101014" />
+        <SolidColorBrush x:Key="CardSecondaryBrush" Color="#18181B" />
+        <SolidColorBrush x:Key="CardBorderBrush" Color="#2A1116" />
+
+        <SolidColorBrush x:Key="AccentBrush" Color="#EF101B" />
+        <SolidColorBrush x:Key="AccentBrushHover" Color="#FF2D2D" />
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#2A0C0C" />
+
+        <SolidColorBrush x:Key="WarningBrush" Color="#EF1B1B" />
+        <SolidColorBrush x:Key="DangerBrush" Color="#DC2626" />
+
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#A1A1AA" />
         <SolidColorBrush x:Key="PrimaryTextBrush" Color="#F8FAFC" />
+
+        <SolidColorBrush x:Key="InputBrush" Color="#09090B" />
+        <SolidColorBrush x:Key="InputBorderBrush" Color="#3F1D24" />
+        <SolidColorBrush x:Key="TableHeaderBrush" Color="#18181B" />
+        <SolidColorBrush x:Key="TableRowBrush" Color="#09090B" />
+        <SolidColorBrush x:Key="TableAltRowBrush" Color="#101014" />
+        <SolidColorBrush x:Key="TableSelectedBrush" Color="#4A0D0D" />
+        <SolidColorBrush x:Key="TableHoverBrush" Color="#2A0C0C" />
 
         <Style x:Key="CardBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}" />
@@ -45,9 +58,8 @@
         </Style>
 
         <Style x:Key="TextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="#0B1220" />
-            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
-            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="Background" Value="{StaticResource InputBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="0,6,0,14" />

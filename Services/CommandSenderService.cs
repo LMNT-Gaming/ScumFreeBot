@@ -28,13 +28,16 @@ public sealed class CommandSenderService
         var psi = new ProcessStartInfo
         {
             FileName = autoHotkeyPath,
-            Arguments = $"\"{scriptPath}\" cmd \"{command}\"",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden
         };
+
+        psi.ArgumentList.Add(scriptPath);
+        psi.ArgumentList.Add("cmd");
+        psi.ArgumentList.Add(command);
 
         try
         {

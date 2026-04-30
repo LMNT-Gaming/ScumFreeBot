@@ -2,6 +2,8 @@
 using System.IO;
 using System.Text.Json;
 using ScumFreeBot.Models;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ScumFreeBot.Services;
 
@@ -60,6 +62,68 @@ public sealed class PlayerStateStore
         state.PlayerName = playerName;
         state.WelcomePackReceived = true;
         state.WelcomePackReceivedAtUtc = DateTime.UtcNow;
+
+        Save(db);
+    }
+
+    public IReadOnlyList<(string PlayerKey, string PlayerName, string Trigger, PlayerCommandState CommandState)> GetAllCommandStates()
+    {
+        var db = Load();
+
+        return db.Players
+            .SelectMany(player =>
+            {
+                player.Value.CommandStates ??= new Dictionary<string, PlayerCommandState>(StringComparer.OrdinalIgnoreCase);
+
+                return player.Value.CommandStates.Select(command => (
+                    PlayerKey: player.Key,
+                    PlayerName: player.Value.PlayerName,
+                    Trigger: command.Key,
+                    CommandState: command.Value
+                ));
+            })
+            .OrderByDescending(x => x.CommandState.LastUsedAtUtc ?? DateTime.MinValue)
+            .ToList();
+    }
+
+    public void ResetCommandState(string playerKey, string trigger)
+    {
+        if (string.IsNullOrWhiteSpace(playerKey) || string.IsNullOrWhiteSpace(trigger))
+        {
+            return;
+        }
+
+        var db = Load();
+
+        if (!db.Players.TryGetValue(playerKey.Trim(), out var player))
+        {
+            return;
+        }
+
+        player.CommandStates ??= new Dictionary<string, PlayerCommandState>(StringComparer.OrdinalIgnoreCase);
+
+        if (player.CommandStates.Remove(trigger.Trim().ToLowerInvariant()))
+        {
+            Save(db);
+        }
+    }
+
+    public void ResetAllCommandStatesForPlayer(string playerKey)
+    {
+        if (string.IsNullOrWhiteSpace(playerKey))
+        {
+            return;
+        }
+
+        var db = Load();
+
+        if (!db.Players.TryGetValue(playerKey.Trim(), out var player))
+        {
+            return;
+        }
+
+        player.CommandStates ??= new Dictionary<string, PlayerCommandState>(StringComparer.OrdinalIgnoreCase);
+        player.CommandStates.Clear();
 
         Save(db);
     }

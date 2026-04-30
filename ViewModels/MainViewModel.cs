@@ -6,6 +6,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using ScumFreeBot.Models;
 using ScumFreeBot.Services;
+using System.Threading.Tasks;
+using System.Windows;
 
 namespace ScumFreeBot.ViewModels;
 
@@ -71,7 +73,22 @@ public sealed class MainViewModel : ObservableObject
     private string _selectedCommandScriptText = string.Empty;
     private string _commandCenterStatusText = "Noch nicht gespeichert.";
 
+    private readonly PlayerStateStore _playerStateStore = new();
+    private PlayerCommandUsageViewModel? _selectedPlayerCommandUsage;
+    private string _playerCommandUsageStatusText = "Noch nicht geladen.";
+
     public ObservableCollection<CommandRuleEditorViewModel> CommandRules { get; } = new();
+    public ObservableCollection<PlayerCommandUsageViewModel> PlayerCommandUsages { get; } = new();
+
+    private const string LatestVersionUrl = "https://lmnt-gaming.net/scum-freebot/latest.json";
+
+    private string _currentVersionText = UpdateService.GetCurrentVersionText();
+    private string _latestVersionText = "-";
+    private string _updateStatusText = "Versionsprüfung noch nicht ausgeführt.";
+    private string? _updateDownloadUrl;
+    private string? _updatePatchNotesUrl;
+    private bool _isUpdateAvailable;
+    private bool _isCheckingForUpdates;
 
     public string[] RunModeOptions { get; } =
     {
@@ -90,12 +107,12 @@ public sealed class MainViewModel : ObservableObject
         _statusMonitorService = statusMonitorService;
         _commandSenderService = commandSenderService;
         _commandCenterService = new CommandCenterService(
-            _commandCenterConfigService,
-            new PlayerStateStore(),
-            new CommandScriptRunnerService(
-    commandSenderService,
-    new PlayerLocationService()),
-            commandSenderService);
+    _commandCenterConfigService,
+    _playerStateStore,
+    new CommandScriptRunnerService(
+        commandSenderService,
+        new PlayerLocationService()),
+    commandSenderService);
     }
 
     public string BotStatusText
@@ -119,6 +136,61 @@ public sealed class MainViewModel : ObservableObject
             LoadSelectedCommandScript();
         }
     }
+
+    public string CurrentVersionText
+    {
+        get => _currentVersionText;
+        private set => SetProperty(ref _currentVersionText, value);
+    }
+
+    public string LatestVersionText
+    {
+        get => _latestVersionText;
+        private set => SetProperty(ref _latestVersionText, value);
+    }
+
+    public string UpdateStatusText
+    {
+        get => _updateStatusText;
+        private set => SetProperty(ref _updateStatusText, value);
+    }
+
+    public string? UpdateDownloadUrl
+    {
+        get => _updateDownloadUrl;
+        private set => SetProperty(ref _updateDownloadUrl, value);
+    }
+
+    public string? UpdatePatchNotesUrl
+    {
+        get => _updatePatchNotesUrl;
+        private set => SetProperty(ref _updatePatchNotesUrl, value);
+    }
+
+    public bool IsUpdateAvailable
+    {
+        get => _isUpdateAvailable;
+        private set
+        {
+            if (SetProperty(ref _isUpdateAvailable, value))
+            {
+                OnPropertyChanged(nameof(UpdateAvailableVisibility));
+                OnPropertyChanged(nameof(NoUpdateAvailableVisibility));
+            }
+        }
+    }
+
+    public bool IsCheckingForUpdates
+    {
+        get => _isCheckingForUpdates;
+        private set => SetProperty(ref _isCheckingForUpdates, value);
+    }
+
+    public Visibility UpdateAvailableVisibility =>
+        IsUpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility NoUpdateAvailableVisibility =>
+        IsUpdateAvailable ? Visibility.Collapsed : Visibility.Visible;
 
     public string SelectedCommandScriptText
     {
@@ -350,6 +422,18 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _isSendingCommand, value);
     }
 
+    public PlayerCommandUsageViewModel? SelectedPlayerCommandUsage
+    {
+        get => _selectedPlayerCommandUsage;
+        set => SetProperty(ref _selectedPlayerCommandUsage, value);
+    }
+
+    public string PlayerCommandUsageStatusText
+    {
+        get => _playerCommandUsageStatusText;
+        private set => SetProperty(ref _playerCommandUsageStatusText, value);
+    }
+
     public void LoadSettings()
     {
         var settings = _settingsService.Load();
@@ -368,6 +452,7 @@ public sealed class MainViewModel : ObservableObject
         RemoteLogsPath = settings.RemoteLogsPath;
         RemoteSyncIntervalSeconds = settings.RemoteSyncIntervalSeconds;
         LoadCommandCenter();
+        LoadPlayerCommandUsages();
     }
 
     public void LoadCommandCenter()
@@ -436,6 +521,69 @@ public sealed class MainViewModel : ObservableObject
 
         _commandCenterConfigService.Save(config);
         CommandCenterStatusText = $"Steuerungszentrale gespeichert: {CommandRules.Count} Befehl(e).";
+    }
+
+    public void LoadPlayerCommandUsages()
+    {
+        PlayerCommandUsages.Clear();
+
+        var usages = _playerStateStore.GetAllCommandStates();
+
+        foreach (var usage in usages)
+        {
+            PlayerCommandUsages.Add(new PlayerCommandUsageViewModel
+            {
+                PlayerKey = usage.PlayerKey,
+                PlayerName = usage.PlayerName,
+                Trigger = usage.Trigger,
+                UseCount = usage.CommandState.UseCount,
+                LastUsedAtUtc = usage.CommandState.LastUsedAtUtc
+            });
+        }
+
+        SelectedPlayerCommandUsage = PlayerCommandUsages.FirstOrDefault();
+
+        PlayerCommandUsageStatusText = PlayerCommandUsages.Count == 0
+            ? "Noch keine ausgeführten Spielerbefehle gespeichert."
+            : $"{PlayerCommandUsages.Count} ausgeführte Spielerbefehle geladen.";
+    }
+
+    public void ResetSelectedPlayerCommandUsage()
+    {
+        if (SelectedPlayerCommandUsage is null)
+        {
+            PlayerCommandUsageStatusText = "Kein Eintrag ausgewählt.";
+            return;
+        }
+
+        var player = SelectedPlayerCommandUsage.DisplayPlayerName;
+        var trigger = SelectedPlayerCommandUsage.Trigger;
+
+        _playerStateStore.ResetCommandState(
+            SelectedPlayerCommandUsage.PlayerKey,
+            SelectedPlayerCommandUsage.Trigger);
+
+        LoadPlayerCommandUsages();
+
+        PlayerCommandUsageStatusText = $"{trigger} für {player} wurde zurückgesetzt.";
+    }
+
+    public void ResetAllCommandUsagesForSelectedPlayer()
+    {
+        if (SelectedPlayerCommandUsage is null)
+        {
+            PlayerCommandUsageStatusText = "Kein Spieler ausgewählt.";
+            return;
+        }
+
+        var player = SelectedPlayerCommandUsage.DisplayPlayerName;
+
+        _playerStateStore.ResetAllCommandStatesForPlayer(
+            SelectedPlayerCommandUsage.PlayerKey);
+
+        LoadPlayerCommandUsages();
+
+        PlayerCommandUsageStatusText = $"Alle Befehlsausführungen für {player} wurden zurückgesetzt.";
     }
 
     private void LoadSelectedCommandScript()
@@ -680,5 +828,63 @@ public sealed class MainViewModel : ObservableObject
     {
         return new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hexColor));
+    }
+
+    public async Task CheckForUpdatesAsync()
+    {
+        if (IsCheckingForUpdates)
+        {
+            return;
+        }
+
+        IsCheckingForUpdates = true;
+
+        try
+        {
+            CurrentVersionText = UpdateService.GetCurrentVersionText();
+            LatestVersionText = "-";
+            UpdateDownloadUrl = null;
+            UpdatePatchNotesUrl = null;
+            IsUpdateAvailable = false;
+            UpdateStatusText = "Prüfe auf Updates...";
+
+            var updateService = new UpdateService();
+            var latest = await updateService.GetLatestAsync(LatestVersionUrl);
+
+            if (latest is null || string.IsNullOrWhiteSpace(latest.Version))
+            {
+                UpdateStatusText = "Keine Versionsinformationen gefunden.";
+                return;
+            }
+
+            LatestVersionText = latest.Version;
+            UpdateDownloadUrl = latest.DownloadUrl;
+            UpdatePatchNotesUrl = latest.PatchNotesUrl;
+
+            if (UpdateService.IsNewer(latest.Version))
+            {
+                IsUpdateAvailable = true;
+
+                UpdateStatusText = latest.Mandatory
+                    ? $"Pflichtupdate verfügbar: Version {latest.Version}"
+                    : $"Update verfügbar: Version {latest.Version}";
+
+                return;
+            }
+
+            UpdateStatusText = $"Du nutzt die aktuelle Version ({CurrentVersionText}).";
+        }
+        catch (Exception ex)
+        {
+            IsUpdateAvailable = false;
+            LatestVersionText = "-";
+            UpdateDownloadUrl = null;
+            UpdatePatchNotesUrl = null;
+            UpdateStatusText = $"Versionsprüfung fehlgeschlagen: {ex.Message}";
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
+        }
     }
 }

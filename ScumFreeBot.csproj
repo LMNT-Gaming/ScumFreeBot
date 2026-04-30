@@ -8,6 +8,10 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>ScumFreeBot</AssemblyName>
     <RootNamespace>ScumFreeBot</RootNamespace>
+	<Version>0.6.21</Version>
+	<AssemblyVersion>0.6.21.0</AssemblyVersion>
+	<FileVersion>0.6.21.0</FileVersion>
+	<InformationalVersion>0.6.21</InformationalVersion>
   </PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="SSH.NET" Version="2024.1.0" />
@@ -17,5 +21,11 @@
 		<None Update="Data\**\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Assets\" />
+	</ItemGroup>
+	<ItemGroup>
+		<Resource Include="Assets\logo.png" />
 	</ItemGroup>
 </Project>
